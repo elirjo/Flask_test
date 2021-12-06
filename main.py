@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, request, session, make_response,session,url_for, jsonify
+from flask import Flask, render_template, redirect, request, session, make_response,session,url_for, jsonify, flash
 import spotipy
 import spotipy.util as util
 import time
@@ -38,6 +38,10 @@ SHOW_DIALOG = True
 
 #app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql://postgres:postgres@localhost:5432/User_info"
 #db = SQLAlchemy(app)
+artistName = set(database["Artist"])
+songGenre = set(database["Song_Genre"])
+#artistTrack = set(database["Tracks"])
+
 
 @app.route('/')
 def home():
@@ -48,6 +52,12 @@ def home():
 @app.route('/index')
 def index():
     return render_template("index.html")
+
+@app.route("/logout",methods=["POST","GET"])
+def logout():
+    if session["email"]:
+        session.pop("email", None)
+    return redirect(url_for("login"))
 
 @app.route("/login",methods=["POST","GET"])
 def login():
@@ -73,7 +83,6 @@ def login():
 @app.route("/info",methods = ["POST","GET"])
 def info():
     if request.method == "POST":
-        name = request.form["name"]
         artist = request.form.getlist("artist")
         genre = request.form.getlist("genre")
         session["artist"] = artist
@@ -82,7 +91,7 @@ def info():
         gender = request.form["gender"]
         #favourite = 
         #session["genre"] = genre
-        row = [name,email,genre,artist,gender]
+        row = [email,genre,artist,gender]
         #row = {"name":name,"email":email,"genres":genre,"artist":artist}
         with open("D:/Capstone/Flask_test/dataset/user_info.csv", "a") as csvFile:
             writer = csv.writer(csvFile)
@@ -93,7 +102,7 @@ def info():
         csvFile.close()
         return redirect(url_for("profile"))
     else:
-        return render_template("info.html")
+        return render_template("info.html", artistName = artistName, songGenre = songGenre)
 
 @app.route("/mood",methods = ["POST","GET"])
 def mood():
@@ -110,11 +119,12 @@ def mood():
 @app.route("/song-search",methods = ["POST","GET"])
 def song_search():
     if request.method == "POST":
-        songRequest = request.form["search"]  
+        songRequest = request.form["search"]
+        songRequest = songRequest.lower()  
         print("SEARCHSOOOONG", songRequest)   
         returnValue = redirect(url_for("content",song = songRequest))
     else:
-        print("KSLMDALSDMLASD") 
+        flash("KSLMDALSDMLASD") 
         returnValue = render_template("song-search.html")
     return returnValue
     
@@ -163,36 +173,24 @@ def profile():
         if request.form.get("favourite"):
             uri = request.form.get("favourite")
             set_favourite(uri)
-        return render_template("profile.html", temp = get_artist_songs(session["artist"]))
+        return render_template("profile.html", temp = get_artist_songs(session["artist"]), temp1 = get_genres(session["genre"]))
 
-@app.route("/<song>", methods=["GET", "POST"])
-def content(song):  
-    if request.method == 'POST':# and Form.validate():
-        if song == "favourite":
-            song = request.form["favourite"]
-            print("THIS IS A POST SONG FAVOURITE:", song)
-            return redirect(url_for("search"))
+@app.route("/<song>", methods=["POST", "GET"])
+def content(song): 
+    try: 
+        if request.method == 'GET':# and Form.validate():
+            found = list(database[database["Tracks"] == song]["uri"])[0]
+            recommendation = get_recommendations(song) 
+            print("THIS IS A POST SONG REQUEST:", song)
+            return render_template("content.html",Recommendation = recommendation, found = found)#,Track = track,Artist = artist,Uri = uri,Recommendation = recommendation)    
+        else:
+            return render_template("song-search.html")
+    except:
+        print("THIS IS A EXCEPTION:", song)
+        return redirect(url_for("song_search"))
 
-        print("THIS IS A POST SONG REQUEST:", song)
-        found = list(database[database["Tracks"] == song]["uri"])[0]
-        recommendation = get_recommendations(song) 
-        #recommendation = get_recommendations(get_song_from_uri(song)) 
-    else:
-        print("THIS IS A GET MESSAGE: ", song)
-        found = list(database[database["Tracks"] == song]["uri"])[0]
-        recommendation = get_recommendations(song)
- 
-    if recommendation:
-        #session.pop(song,None)
-        print("ABC: ", session['Song'])
-        returnValue = render_template("content.html",Recommendation = recommendation, found = found)#,Track = track,Artist = artist,Uri = uri,Recommendation = recommendation)    
-    else:
-        print("ERRORONUS")
-        returnValue = redirect(url_for("search"))
-    song = None
-    return returnValue
   
-content_input = database.drop(["Artist","Tracks","uri","Genres","duration_ms"],axis = 1)
+content_input = database.drop(["Artist","Tracks","uri","Genres","duration_ms","Song_Genre"],axis = 1)
 content_input[content_input.columns[content_input.dtypes == "float64"].values] = sc.fit_transform(content_input[content_input.columns[content_input.dtypes == "float64"].values])   
 content_similarity = cosine_similarity(content_input)
 content_similarity_df = pd.DataFrame(content_similarity,index = content_input.index,columns = content_input.index)
@@ -204,7 +202,7 @@ def get_recommendations(song):
     per = []
     for y in temp:
         x = content_similarity_df.at[y,id]
-        per.append(str(x * 100))
+        per.append(str(x * 100)[0:9])
     link = list(database.iloc[temp]["uri"])
     #recommendation = set([i +" by " + j + " : " +  k for i,j,k in zip(x,y,z)])
     return zip(link, per)
@@ -213,6 +211,7 @@ def get_artist_songs(artist):
     link = []
     for name in artist:
         z = (database[(database['Artist'] == name)].sample(n = 3))["uri"]   
+        #y = (database[(database['Artist'] == name)].sample(n = 3))["Tracks"]   
         link.append(z)
     return link
 
@@ -263,6 +262,13 @@ def check(email):
     else:   
         print("Invalid Email")  
         return False
+
+def get_genres(genre):
+    link = []
+    for name in genre:
+        z = (database[(database['Song_Genre'] == name)].sample(n = 3))["uri"]
+        link.append(z)
+    return link
 
 if __name__ == "__main__":
     app.run(debug = True) 
