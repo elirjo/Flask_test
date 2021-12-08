@@ -89,9 +89,11 @@ def info():
         session["genre"] = genre
         email = session["email"]
         gender = request.form["gender"]
+        session["gender"] = gender
+        favourite = []
         #favourite = 
         #session["genre"] = genre
-        row = [email,genre,artist,gender]
+        row = [email,genre,artist,gender,favourite]
         #row = {"name":name,"email":email,"genres":genre,"artist":artist}
         with open("D:/Capstone/Flask_test/dataset/user_info.csv", "a") as csvFile:
             writer = csv.writer(csvFile)
@@ -121,15 +123,39 @@ def song_search():
     if request.method == "POST":
         songRequest = request.form["search"]
         songRequest = songRequest.lower()  
-        print("SEARCHSOOOONG", songRequest)   
+        print("SEARCHSOOOONG", songRequest) 
         returnValue = redirect(url_for("content",song = songRequest))
     else:
-        flash("KSLMDALSDMLASD") 
+        #flash("") 
         returnValue = render_template("song-search.html")
     return returnValue
     
-# @app.route("/favourite")
-# def favourite(URI):
+@app.route("/favourite")
+def favourite():
+    if request.method == "POST":
+        song = request.form["song"] 
+        #session['Song'] = song
+        print("FAVOURITECHECK: ", song)
+        returnValue =  redirect(url_for("favourite_results"))
+    else:
+        print("lol123lol123")
+        #found = list(database[database["Tracks"] == song]["uri"])[0]
+        returnValue = render_template("favourite.html")#, found = found)
+    return returnValue
+
+@app.route("/favourite-results")
+def favourite_results():
+    if request.method == "POST":
+        song = request.form["favourite"] 
+        song = get_song_from_uri(song)
+        #session['Song'] = song
+        print("FAVOURITE-RESULT-CHECK: ", song)
+        returnValue =  redirect(url_for("favourite",song = song))
+    else:
+       
+        returnValue = render_template("favourite_results.html")
+    return returnValue
+    
 #     print("loaded")
 #     #temp2 = session[email]
 #     #list_of_str = ['Name', 'Email', 'Genres', 'Artist', 'Gender', 'Favourite']
@@ -146,7 +172,7 @@ def song_search():
 #         # user_info.append(row, ignore_index=True)
 #         # user_info.to_csv("D:/Capstone/Flask_test/dataset/user_info.csv", index=False)
 #     csvFile.close()
-#     return returnValue
+    return returnValue
 
 # @app.route("/search",methods=["POST","GET"])
 # def search():
@@ -169,25 +195,33 @@ def profile():
         return redirect(url_for("content",song = song))
     else:
         #print("TESTINGTON: ", session['Song'])
-        print("PRFILETESTER", session["artist"])
         if request.form.get("favourite"):
             uri = request.form.get("favourite")
             set_favourite(uri)
+            return render_template("favourite.html", URI = uri)
         return render_template("profile.html", temp = get_artist_songs(session["artist"]), temp1 = get_genres(session["genre"]))
 
 @app.route("/<song>", methods=["POST", "GET"])
 def content(song): 
-    try: 
+    try:
         if request.method == 'GET':# and Form.validate():
             found = list(database[database["Tracks"] == song]["uri"])[0]
             recommendation = get_recommendations(song) 
-            print("THIS IS A POST SONG REQUEST:", song)
+            print("THIS IS A GET SONG REQUEST:", found)
             return render_template("content.html",Recommendation = recommendation, found = found)#,Track = track,Artist = artist,Uri = uri,Recommendation = recommendation)    
         else:
+            found = request.form['favourite']
+            if song == "favourite_results":
+                print(song, " ", found)
+                set_favourite(found)
+                session["favourite"] = found
+                return redirect(url_for("favourite_results"))
             return render_template("song-search.html")
     except:
         print("THIS IS A EXCEPTION:", song)
-        return redirect(url_for("song_search"))
+        requestForm = request.form['favourite']
+        print("THIS IS A EXCEPTION:", requestForm)
+        return redirect(url_for("index"))
 
   
 content_input = database.drop(["Artist","Tracks","uri","Genres","duration_ms","Song_Genre"],axis = 1)
@@ -221,21 +255,38 @@ def get_artist_songs(artist):
 
 def set_favourite(URI):
     print("loaded")
-    #temp2 = session[email]
-    #list_of_str = ['Name', 'Email', 'Genres', 'Artist', 'Gender', 'Favourite']
-    temp = user_info[user_info["Email"] == session["email"]].index.values[0]
-    returnValue = []
-    #row = []
-    with open("D:/Capstone/Flask_test/dataset/user_info.csv", "a") as csvFile:
-        writer = csv.writer(csvFile)
-        writer[temp][5] = URI
-        print(writer)
-        #csvFile.write("\n")
-        writer.writerow(writer)
+    email = user_info[user_info["Email"] == session["email"]].index.values[0]
+    artist = user_info["Artist"][user_info["Email"] == session["email"]]
+    genre = user_info["Genres"][user_info["Email"] == session["email"]]
+    gender = user_info["Gender"][user_info["Email"] == session["email"]]
+    favourite = user_info["Favourite"][user_info["Email"] == session["email"]]
+    temp = []
+    print("Test:", favourite, "Also", temp)
+    if favourite == temp:
+        favourite.append[URI]
+        print("1",artist," ", genre, " ", gender, " ",favourite)
+    else:
+        favourite = user_info["Favourite"][user_info["Email"] == session["email"]]
+        favourite.append[URI]
+        print("2",artist," ", genre, " ", gender, " ",favourite)
+    #
+    row = [email,genre,artist,gender,favourite]
+    #row = {"name":name,"email":email,"genres":genre,"artist":artist}
+    if email == user_info["Email"].index.values[0]:
+        with open("D:/Capstone/Flask_test/dataset/user_info.csv", "a") as csvFile:
+            writer = csv.writer(csvFile)
+            #csvFile.write("\n")
+            writer.writerow(row)
+            print(writer)
+            # user_info.append(row, ignore_index=True)
+            # user_info.to_csv("D:/Capstone/Flask_test/dataset/user_info.csv", index=False)
+        csvFile.close()
         returnValue = True
-        # user_info.append(row, ignore_index=True)
-        # user_info.to_csv("D:/Capstone/Flask_test/dataset/user_info.csv", index=False)
-    csvFile.close()
+        #temp2 = session[email]
+        #list_of_str = ['Name', 'Email', 'Genres', 'Artist', 'Gender', 'Favourite']
+        #temp = user_info[user_info["Email"] == session["email"]].index.values[0]
+    else:
+        returnValue = False
     return returnValue
 
 def get_song_from_uri(URI):
@@ -269,6 +320,7 @@ def get_genres(genre):
         z = (database[(database['Song_Genre'] == name)].sample(n = 3))["uri"]
         link.append(z)
     return link
+
 
 if __name__ == "__main__":
     app.run(debug = True) 
